@@ -24,10 +24,13 @@ struct UnionFind
 {
     std::vector<int> par; // par[i]:iの親の番号　(例) par[3] = 2 : 3の親が2
     vector<int> _size;
-    UnionFind(int N) : par(N)
+    UnionFind(int N) : par(N), _size(N)
     { // 最初は全てが根であるとして初期化
         for (int i = 0; i < N; i++)
+        {
             par[i] = i;
+            _size[i] = 1;
+        }
     }
     UnionFind() {}
 
@@ -74,8 +77,10 @@ ll getTime()
 template <typename T>
 void debug(vector<T> v)
 {
-#ifdef DONLINE_JUDGE
+#ifdef ONLINE_JUDGE
 #else
+#endif
+#ifdef LOCAL_DEBUG
     for (auto vi : v)
     {
         cout << vi << ' ';
@@ -84,11 +89,23 @@ void debug(vector<T> v)
 #endif
 }
 
+void debug(const char *c, const int v)
+{
+#ifdef ONLINE_JUDGE
+#else
+#endif
+#ifdef LOCAL_DEBUG
+    cout << c << v << '\n';
+#endif
+}
+
 template <typename T>
 void debug(set<T> v)
 {
-#ifdef DONLINE_JUDGE
+#ifdef ONLINE_JUDGE
 #else
+#endif
+#ifdef LOCAL_DEBUG
     for (auto vi : v)
     {
         cout << vi << ' ';
@@ -99,16 +116,20 @@ void debug(set<T> v)
 
 void debug(const char *s)
 {
-#ifdef DONLINE_JUDGE
+#ifdef ONLINE_JUDGE
 #else
+#endif
+#ifdef LOCAL_DEBUG
     puts(s);
 #endif
 }
 
 void debug()
 {
-#ifdef DONLINE_JUDGE
+#ifdef ONLINE_JUDGE
 #else
+#endif
+#ifdef LOCAL_DEBUG
     puts("debug");
 #endif
 }
@@ -181,6 +202,7 @@ struct STATE
     vvvvi count; // store the target silhouette.
     int d;
     vvvvi answer; // maintain the component idx of the graph
+    int anscnt;
     UnionFind uf; // first half: vertices of G[0]. second half: vertices of G[1]
 
     STATE(const int _d, const vvvi &vec) : d(_d)
@@ -194,28 +216,28 @@ struct STATE
         vertex.resize(2);
         flagment.resize(2);
         // perm = RandomPermutation(vertex);
-        debug("----------------");
-#ifdef DONLINE_JUDGE
-#else
-        REP(i, 2)
-        {
-            REP(j, 2)
-            {
-                REP(x, d)
-                {
-                    REP(y, d)
-                    {
-                        if ((face[i][j][x] >> y) & 1 == 1)
-                            cout << '1';
-                        else
-                            cout << '0';
-                    }
-                    cout << '\n';
-                }
-                debug("----------------");
-            }
-        }
-#endif
+        //         debug("----------------");
+        // #ifdef DONLINE_JUDGE
+        // #else
+        //         REP(i, 2)
+        //         {
+        //             REP(j, 2)
+        //             {
+        //                 REP(x, d)
+        //                 {
+        //                     REP(y, d)
+        //                     {
+        //                         if ((face[i][j][x] >> y) & 1 == 1)
+        //                             cout << '1';
+        //                         else
+        //                             cout << '0';
+        //                     }
+        //                     cout << '\n';
+        //                 }
+        //                 debug("----------------");
+        //             }
+        //         }
+        // #endif
         // create two graphs
         REP(gidx, 2)
         {
@@ -291,14 +313,20 @@ struct STATE
 
     tuple<int, int, int> ver2coord(int u)
     {
-        return {u / (d * d), u / d, u % d};
+        int x, y, z;
+        x = u / (d * d);
+        u -= x * (d * d);
+        y = u / d;
+        u -= y * d;
+        z = u;
+        return {x, y, z};
     }
 
     bool is_need(int v, int i)
     {
         auto [x, y, z] = ver2coord(v);
         vi coord = {x, y, z};
-        debug(coord);
+        // debug(coord);
         if (x >= 0 && x < d && y >= 0 && y < d && z >= 0 && z < d)
             return (((face[i][0][z] >> x) & 1) == 1) && (((face[i][1][z] >> y) & 1) == 1); // in cube and the cell can use to make silhouette.
         else
@@ -319,9 +347,9 @@ struct STATE
         // the manhattan distance if exactly one
         bool cond0 = diff == 1;
         // both u, v are candidates for the silhouette f_i
-        bool cond1 = ((face[i][0][uz] >> ux) & 1 == 1) && ((face[i][0][vz] >> vx) == 1);
+        bool cond1 = ((face[i][0][uz] >> ux) & 1 == 1) && ((face[i][0][vz] >> vx) & 1 == 1);
         // both u, v are candidates for the silhouette r_i
-        bool cond2 = ((face[i][1][uz] >> uy) & 1 == 1) && ((face[i][1][vz] >> vy) == 1);
+        bool cond2 = ((face[i][1][uz] >> uy) & 1 == 1) && ((face[i][1][vz] >> vy) & 1 == 1);
         bool cond = cond0 && cond1 && cond2;
         return cond;
     }
@@ -335,7 +363,7 @@ struct STATE
             for (int v : vertex[i])
             {
                 int rx = uf.root(n * i + v);
-                if (m[rx] == 0)
+                if (m.count(rx) == 0)
                 {
                     m[rx] = cnt;
                     cnt++;
@@ -344,10 +372,12 @@ struct STATE
                 answer[i][x][y][z] = m[rx];
             }
         }
+        anscnt = cnt - 1;
     }
 
     void output()
     {
+        cout << anscnt << '\n';
         REP(i, 2)
         {
             REP(x, d)
@@ -374,10 +404,13 @@ void init(STATE &state)
     // puts("Debug");
     int from = 0, to = 1;
     int n = state.n;
-    if (state.flagment[from].size() > state.flagment[to].size())
-        swap(from, to);
+    debug("n=", n);
     vector<long unsigned int> tmp = {state.flagment[from].size(), state.flagment[to].size()};
     debug(tmp);
+    if (state.flagment[from].size() > state.flagment[to].size())
+    {
+        swap(from, to);
+    }
     vector<int> sampled;
     sample(all(state.flagment[to]), back_inserter(sampled), state.flagment[to].size(), engine);
     shuffle(all(sampled), engine);
@@ -389,34 +422,35 @@ void init(STATE &state)
     // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
     // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
     debug("init");
+    int cnt = 0;
     for (int r : state.flagment[from])
     {
+        if (cnt > 5)
+            break;
         int axis = engine() % 3;
         int unit = engine() % 4;
 
         // G[to] 側でuに対応する頂点を探索
-        int p = sampled[to_i];
-        while (used[to][p] && to_i < max_to)
+        while (to_i < max_to && used[to][sampled[to_i]])
         {
             to_i++;
         }
-        auto [px, py, pz] = state.ver2coord(p);
-        // 全部使い切ってたら(孤立点が残っていなければ)終了
         if (to_i == max_to)
             break;
+        int p = sampled[to_i];
+        auto [px, py, pz] = state.ver2coord(p);
+        // 全部使い切ってたら(孤立点が残っていなければ)終了
         // もしrが既にどこかにマージ済なら終了
         if (used[from][r])
             continue;
         auto [rx, ry, rz] = state.ver2coord(r);
         queue<int> que;
         que.push(r);
-
         while (!que.empty())
         {
             int u = que.front();
             que.pop();
             // auto [ux, uy, uz] = state.ver2coord(u);
-
             // u から辿れる場所を調べる
             for (int next_u : state.G[from][u])
             {
@@ -430,10 +464,13 @@ void init(STATE &state)
                 if (state.is_need(qx, qy, qz, to))
                 {
                     int q = state.coord2ver(qx, qy, qz);
-                    state.uf.unite(from * n + next_u, from * n + r);
+                    state.uf.unite(from * n + next_u, from * n + u);
+                    state.uf.unite(from * n + r, to * n + p);
                     state.uf.unite(to * n + q, to * n + p);
                     que.push(next_u);
+                    used[from][u] = true;
                     used[from][next_u] = true;
+                    used[to][p] = true;
                     used[to][q] = true;
                 }
             }
@@ -444,7 +481,9 @@ void init(STATE &state)
             used[from][r] = true;
             used[to][p] = true;
         }
+        cnt++;
     }
+    debug("init end");
 }
 
 // 状態遷移
@@ -526,6 +565,7 @@ void solve(const int d, const vvvi &face)
     STATE state(d, face);
     init(state);
     state.sync();
+    state.output();
 }
 
 int main()
