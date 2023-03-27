@@ -195,7 +195,7 @@ tuple<int, int, int> rotate(int dx, int dy, int dz, int axis, int unit)
 struct STATE
 {
     vvi vertex; // vector of vertex of G1
-    vector<set<int>> flagment;
+    vector<set<int>> fragment;
     vvvi G;
     int n; // num of V(G_i)
     // vi perm;     // map from V(G_1) to V(G_2)
@@ -215,7 +215,7 @@ struct STATE
         count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
         answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
         vertex.resize(2);
-        flagment.resize(2);
+        fragment.resize(2);
         // perm = RandomPermutation(vertex);
         //         debug("----------------");
         // #ifdef DONLINE_JUDGE
@@ -251,7 +251,7 @@ struct STATE
                 answer[gidx][x][y][z] = v;
                 count[gidx][0][z][x]++;
                 count[gidx][1][z][y]++;
-                flagment[gidx].insert(v);
+                fragment[gidx].insert(v);
             }
             debug(vertex[gidx]);
         }
@@ -429,32 +429,63 @@ struct STATE
     }
 };
 
+// 状態のスコア計算
+ll calc_score(STATE &state)
+{
+    // return 0;
+    state.sync();
+    // state.output();
+    vector<int> used(state.anscnt + 1, 0);
+    vector<int> size(state.anscnt + 1, 0);
+    REP(i, 2)
+    {
+        for (int v : state.vertex[i])
+        {
+            auto [x, y, z] = state.ver2coord(v);
+            used[state.answer[i][x][y][z]] |= (1 << i);
+            size[state.answer[i][x][y][z]]++;
+        }
+    }
+    ll res = 0;
+    ll penal = 1000000LL;
+    REP(i, state.anscnt)
+    {
+        if (used[i] != 3)
+        {
+            res += penal * size[i];
+        }
+        res += penal / size[i];
+    }
+    debug("calc_score: ", res);
+    return res;
+}
+
 // 状態の初期化
 void init(STATE &state)
 {
     // puts("Debug");
     int from = 0, to = 1;
     int n = state.n;
-    debug("n=", n);
-    vector<long unsigned int> tmp = {state.flagment[from].size(), state.flagment[to].size()};
+    // debug("n=", n);
+    vector<long unsigned int> tmp = {state.fragment[from].size(), state.fragment[to].size()};
     debug(tmp);
-    if (state.flagment[from].size() > state.flagment[to].size())
+    if (state.fragment[from].size() > state.fragment[to].size())
     {
         swap(from, to);
     }
     vector<int> sampled;
-    sample(all(state.flagment[to]), back_inserter(sampled), state.flagment[to].size(), engine);
+    sample(all(state.fragment[to]), back_inserter(sampled), state.fragment[to].size(), engine);
     shuffle(all(sampled), engine);
-    debug(state.flagment[from]);
+    debug(state.fragment[from]);
     debug(sampled);
     vector<vector<bool>> used(2, vector<bool>(state.n, false));
     int to_i = 0;
-    int max_to = state.flagment[to].size();
+    int max_to = state.fragment[to].size();
     // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
     // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
     debug("init");
     int cnt = 0;
-    for (int r : state.flagment[from])
+    for (int r : state.fragment[from])
     {
         // if (cnt > 5)
         //     break;
@@ -518,165 +549,158 @@ void init(STATE &state)
         }
         cnt++;
     }
+    // ll score = calc_score(state);
+    // debug("score", score);
     debug("init end");
+}
+
+// 状態遷移
+void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit)
+{
+    // int from = 0, to = 1;
+    int n = state.n;
+    debug("n=", n);
+    // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
+    // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
+
+    auto [px, py, pz] = state.ver2coord(p);
+    auto [rx, ry, rz] = state.ver2coord(r);
+    queue<int> que;
+    que.push(r);
+    while (!que.empty())
+    {
+        int u = que.front();
+        que.pop();
+        // auto [ux, uy, uz] = state.ver2coord(u);
+        // u から辿れる場所を調べる
+        for (int next_u : state.G[from][u])
+        {
+            auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
+            // 既に探索済ならスキップ
+            if (state.fragment[from].find(next_u) == state.fragment[from].end())
+                continue;
+            // rからのdiffをとる
+            int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
+            // 回転させたdiffをとる
+            auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
+            // 回転させたdiffをpに作用させてqを得る
+            int qx = px + to_dx, qy = py + to_dy, qz = pz + to_dz;
+            // qがto側で使われるグラフなら...
+            if (state.is_need(qx, qy, qz, to))
+            {
+                int q = state.coord2ver(qx, qy, qz);
+                if (state.fragment[to].find(q) == state.fragment[to].end())
+                    continue;
+                state.uf.unite(from * n + next_u, from * n + r);
+                state.uf.unite(to * n + q, to * n + p);
+                que.push(next_u);
+                state.fragment[from].erase(next_u);
+                state.fragment[to].erase(q);
+            }
+        }
+        // }
+        if (state.uf.size(from * n + r) > 1)
+        {
+            state.uf.unite(from * n + r, to * n + p);
+            state.fragment[from].erase(r);
+            state.fragment[to].erase(p);
+        }
+    }
+    // ll score = calc_score(state);
+    // debug("score", score);
+    // debug("greedy end");
 }
 
 // 状態遷移
 void modify_mountain(STATE &state)
 {
-}
-// 状態遷移
-// void modify_mountain(STATE &state, int r, int from, int to, int axis, int unit)
-// {
-//     // puts("Debug");
-//     // int from = 0, to = 1;
-//     int n = state.n;
-//     debug("n=", n);
-//     // vector<long unsigned int> tmp = {state.flagment[from].size(), state.flagment[to].size()};
-//     // debug(tmp);
-//     // if (state.flagment[from].size() > state.flagment[to].size())
-//     // {
-//     //     swap(from, to);
-//     // }
-//     vector<int> sampled;
-//     sample(all(state.flagment[to]), back_inserter(sampled), state.flagment[to].size(), engine);
-//     shuffle(all(sampled), engine);
-//     debug(state.flagment[from]);
-//     debug(sampled);
-//     vector<vector<bool>> used(2, vector<bool>(state.n, false));
-//     int to_i = 0;
-//     int max_to = state.flagment[to].size();
-//     // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
-//     // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
-//     debug("init");
-//     int cnt = 0;
-//     // for (int r : state.flagment[from])
-//     // {
-//     // if (cnt > 5)
-//     //     break;
-//     // int axis = engine() % 3;
-//     // int unit = engine() % 4;
+    // debug("modify_mountain");
+    STATE best_state = state;
+    vector<vector<int>> sampled(2);
+    REP(i, 2)
+    {
+        sample(all(state.fragment[i]), back_inserter(sampled[i]), state.fragment[i].size(), engine);
+        shuffle(all(sampled[i]), engine);
+    }
+    // debug(sampled[0]);
+    // debug(sampled[1]);
+    vector<int> max_itr = {(int)state.fragment[0].size(), (int)state.fragment[1].size()};
+    // debug(max_itr);
+    vector<int> idx(2, 0);
+    REP(i, min(min(max_itr[0], max_itr[1]), 2))
+    {
+        int from = i % 2, to = (i + 1) % 2;
+        while (idx[from] < max_itr[from] && state.fragment[from].find(sampled[from][idx[from]]) == state.fragment[from].end())
+        {
+            idx[from]++;
+            // r = sampled[from][idx[from]];
+        }
+        if (idx[from] >= max_itr[from])
+            break;
+        int r = sampled[from][idx[from]];
+        while (idx[to] < max_itr[to] && state.fragment[to].find(sampled[to][idx[to]]) == state.fragment[to].end())
+        {
+            idx[to]++;
+            // p = sampled[to][idx[to]];
+        }
+        if (idx[to] >= max_itr[to])
+            break;
+        int p = sampled[to][idx[to]];
+        // ll pre_score = 0;
+        // debug("calc_score: start");
+        ll pre_score = calc_score(state);
+        // debug("calc_score: done");
 
-//     // G[to] 側でuに対応する頂点を探索
-//     while (to_i < max_to && used[to][sampled[to_i]])
-//     {
-//         to_i++;
-//     }
-//     // 全部使い切ってたら(孤立点が残っていなければ)終了
-//     if (to_i == max_to)
-//         break;
-//     int p = sampled[to_i];
-//     auto [px, py, pz] = state.ver2coord(p);
-//     // もしrが既にどこかにマージ済なら終了
-//     if (used[from][r])
-//         continue;
-//     auto [rx, ry, rz] = state.ver2coord(r);
-//     queue<int> que;
-//     que.push(r);
-//     while (!que.empty())
-//     {
-//         int u = que.front();
-//         que.pop();
-//         // auto [ux, uy, uz] = state.ver2coord(u);
-//         // u から辿れる場所を調べる
-//         for (int next_u : state.G[from][u])
-//         {
-//             auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
-//             // 既に探索済ならスキップ
-//             if (state.flagment[from].find(next_u) == state.flagment[from].end())
-//                 continue;
-//             // rからのdiffをとる
-//             int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
-//             // 回転させたdiffをとる
-//             auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
-//             // 回転させたdiffをpに作用させてqを得る
-//             int qx = px + to_dx, qy = py + to_dy, qz = pz + to_dz;
-//             // qがto側で使われるグラフなら...
-//             if (state.is_need(qx, qy, qz, to))
-//             {
-//                 int q = state.coord2ver(qx, qy, qz);
-//                 if (state.flagment[to].find(q) == state.flagment[to].end())
-//                     continue;
-//                 state.uf.unite(from * n + next_u, from * n + u);
-//                 state.uf.unite(to * n + q, to * n + p);
-//                 que.push(next_u);
-//                 // used[from][u] = true;
-//                 // used[from][next_u] = true;
-//                 // used[to][q] = true;
-//                 state.fragment[from].erase(next_u);
-//                 state.fragment[from].erase(u);
-//                 state.fragment[from].erase(r);
-//                 state.fragment[to].erase(q);
-//                 state.fragment[to].erase(p);
-//             }
-//         }
-//         // }
-//         if (state.uf.size(from * n + r) > 1)
-//         {
-//             state.uf.unite(from * n + r, to * n + p);
-//             // used[from][r] = true;
-//             // used[to][p] = true;
-//             state.fragment[from].erase(r);
-//             state.fragment[from].erase(q);
-//         }
-//         cnt++;
-//     }
-//     debug("init end");
-// }
+        REP(axis, 3)
+        {
+            REP(unit, 4)
+            {
+                // debug("copy state");
+                STATE new_state = state;
+                // debug("axis ", axis);
+                // debug("unit ", unit);
+                greedy(new_state, r, p, from, to, axis, unit);
+                ll new_score = calc_score(new_state);
+                if (new_score < pre_score)
+                    best_state = new_state;
+            }
+        }
+    }
+    state = best_state;
+}
 
 void modify_sa(STATE &state)
 {
 }
 
-// 状態のスコア計算
-int calc_score(STATE &state)
-{
-    state.sync();
-    vector<int> used(state.anscnt, 0);
-    vector<int> size(state.anscnt, 0);
-    REP(i, 2)
-    {
-        for (int v : state.vertex[i])
-        {
-            auto [x, y, z] = state.ver2coord(v);
-            used[state.answer[i][x][y][z]] |= (1 << i);
-            size[state.answer[i][x][y][z]]++;
-        }
-    }
-    ll res = 0;
-    ll penal = 1000000000LL;
-    REP(i, state.anscnt)
-    {
-        if (used[i] != 3)
-        {
-            res += penal * size[i];
-        }
-        res += penal / size[i];
-    }
-    return res;
-}
-
 // 山登り法
 void mountain(STATE &state)
 {
-    // STATE state;
+    // STATE best;
     // init(state);
-    ll start_time; // 開始時刻
+
+    ll start_time = getTime(); // 開始時刻
     while (true)
-    {                // 時間の許す限り回す
-        ll now_time; // 現在時刻
+    {                            // 時間の許す限り回す
+        ll now_time = getTime(); // 現在時刻
         if (now_time - start_time > TIME_LIMIT_M)
             break;
 
         STATE new_state = state;
+
+        // modify_mountain(STATE &state, int r, int p, int from, int to, int axis, int unit)
         modify_mountain(new_state);
+        // debug("modify_end");
         int new_score = calc_score(new_state);
         int pre_score = calc_score(state);
 
-        if (new_score > pre_score)
+        if (new_score < pre_score)
         { // スコア最大化の場合
             state = new_state;
+            // best = new_state;
         }
+        // if (new_score == pre_score)
+        // break;
     }
 }
 
@@ -718,7 +742,8 @@ void sa(STATE &state)
 void solve(const int d, const vvvi &face)
 {
     STATE state(d, face);
-    init(state);
+    // modify_mountain(state);
+    mountain(state);
     state.sync();
     state.output();
 }
