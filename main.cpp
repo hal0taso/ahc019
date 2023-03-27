@@ -16,6 +16,7 @@ using vvi = vector<vector<int>>;
 using vi = vector<int>;
 random_device seed_gen;
 mt19937 engine(seed_gen());
+// mt19937 engine(0);
 const long long TIME_LIMIT = 5000;
 const long long TIME_LIMIT_M = 5000;
 constexpr long long INF = 1000000000LL;
@@ -357,22 +358,52 @@ struct STATE
     void sync()
     {
         map<int, int> m;
-        int cnt = 1;
+        count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
+        answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
+
+        // int cnt = 0;
+        anscnt = 0;
         REP(i, 2)
         {
             for (int v : vertex[i])
             {
                 int rx = uf.root(n * i + v);
-                if (m.count(rx) == 0)
-                {
-                    m[rx] = cnt;
-                    cnt++;
-                }
+                int size = uf.size(n * i + v);
                 auto [x, y, z] = ver2coord(v);
-                answer[i][x][y][z] = m[rx];
+                bool cond = (size > 1);
+                if (m.count(rx) == 0 && cond)
+                {
+                    anscnt++;
+                    m[rx] = anscnt;
+                }
+                if (cond)
+                {
+                    answer[i][x][y][z] = m[rx];
+                    // debug("answer", m[rx]);
+                    count[i][0][z][x]++;
+                    count[i][1][z][y]++;
+                }
             }
         }
-        anscnt = cnt - 1;
+        REP(i, 2)
+        {
+            for (int v : vertex[i])
+            {
+                auto [x, y, z] = ver2coord(v);
+                int size = uf.size(n * i + v);
+                // reduce
+                if (size > 1)
+                    continue;
+                if (count[i][0][z][x] < 1 || count[i][1][z][y] < 1)
+                {
+                    // debug("adjust");
+                    count[i][0][z][x]++;
+                    count[i][1][z][y]++;
+                    anscnt++;
+                    answer[i][x][y][z] = anscnt;
+                }
+            }
+        }
     }
 
     void output()
@@ -425,8 +456,8 @@ void init(STATE &state)
     int cnt = 0;
     for (int r : state.flagment[from])
     {
-        if (cnt > 5)
-            break;
+        // if (cnt > 5)
+        //     break;
         int axis = engine() % 3;
         int unit = engine() % 4;
 
@@ -435,11 +466,11 @@ void init(STATE &state)
         {
             to_i++;
         }
+        // 全部使い切ってたら(孤立点が残っていなければ)終了
         if (to_i == max_to)
             break;
         int p = sampled[to_i];
         auto [px, py, pz] = state.ver2coord(p);
-        // 全部使い切ってたら(孤立点が残っていなければ)終了
         // もしrが既にどこかにマージ済なら終了
         if (used[from][r])
             continue;
@@ -458,19 +489,23 @@ void init(STATE &state)
                 // 既に探索済ならスキップ
                 if (used[from][next_u])
                     continue;
+                // rからのdiffをとる
                 int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
+                // 回転させたdiffをとる
                 auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
+                // 回転させたdiffをpに作用させてqを得る
                 int qx = px + to_dx, qy = py + to_dy, qz = pz + to_dz;
+                // qがto側で使われるグラフなら...
                 if (state.is_need(qx, qy, qz, to))
                 {
                     int q = state.coord2ver(qx, qy, qz);
+                    if (used[to][q])
+                        continue;
                     state.uf.unite(from * n + next_u, from * n + u);
-                    state.uf.unite(from * n + r, to * n + p);
                     state.uf.unite(to * n + q, to * n + p);
                     que.push(next_u);
                     used[from][u] = true;
                     used[from][next_u] = true;
-                    used[to][p] = true;
                     used[to][q] = true;
                 }
             }
@@ -490,6 +525,104 @@ void init(STATE &state)
 void modify_mountain(STATE &state)
 {
 }
+// 状態遷移
+// void modify_mountain(STATE &state, int r, int from, int to, int axis, int unit)
+// {
+//     // puts("Debug");
+//     // int from = 0, to = 1;
+//     int n = state.n;
+//     debug("n=", n);
+//     // vector<long unsigned int> tmp = {state.flagment[from].size(), state.flagment[to].size()};
+//     // debug(tmp);
+//     // if (state.flagment[from].size() > state.flagment[to].size())
+//     // {
+//     //     swap(from, to);
+//     // }
+//     vector<int> sampled;
+//     sample(all(state.flagment[to]), back_inserter(sampled), state.flagment[to].size(), engine);
+//     shuffle(all(sampled), engine);
+//     debug(state.flagment[from]);
+//     debug(sampled);
+//     vector<vector<bool>> used(2, vector<bool>(state.n, false));
+//     int to_i = 0;
+//     int max_to = state.flagment[to].size();
+//     // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
+//     // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
+//     debug("init");
+//     int cnt = 0;
+//     // for (int r : state.flagment[from])
+//     // {
+//     // if (cnt > 5)
+//     //     break;
+//     // int axis = engine() % 3;
+//     // int unit = engine() % 4;
+
+//     // G[to] 側でuに対応する頂点を探索
+//     while (to_i < max_to && used[to][sampled[to_i]])
+//     {
+//         to_i++;
+//     }
+//     // 全部使い切ってたら(孤立点が残っていなければ)終了
+//     if (to_i == max_to)
+//         break;
+//     int p = sampled[to_i];
+//     auto [px, py, pz] = state.ver2coord(p);
+//     // もしrが既にどこかにマージ済なら終了
+//     if (used[from][r])
+//         continue;
+//     auto [rx, ry, rz] = state.ver2coord(r);
+//     queue<int> que;
+//     que.push(r);
+//     while (!que.empty())
+//     {
+//         int u = que.front();
+//         que.pop();
+//         // auto [ux, uy, uz] = state.ver2coord(u);
+//         // u から辿れる場所を調べる
+//         for (int next_u : state.G[from][u])
+//         {
+//             auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
+//             // 既に探索済ならスキップ
+//             if (state.flagment[from].find(next_u) == state.flagment[from].end())
+//                 continue;
+//             // rからのdiffをとる
+//             int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
+//             // 回転させたdiffをとる
+//             auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
+//             // 回転させたdiffをpに作用させてqを得る
+//             int qx = px + to_dx, qy = py + to_dy, qz = pz + to_dz;
+//             // qがto側で使われるグラフなら...
+//             if (state.is_need(qx, qy, qz, to))
+//             {
+//                 int q = state.coord2ver(qx, qy, qz);
+//                 if (state.flagment[to].find(q) == state.flagment[to].end())
+//                     continue;
+//                 state.uf.unite(from * n + next_u, from * n + u);
+//                 state.uf.unite(to * n + q, to * n + p);
+//                 que.push(next_u);
+//                 // used[from][u] = true;
+//                 // used[from][next_u] = true;
+//                 // used[to][q] = true;
+//                 state.fragment[from].erase(next_u);
+//                 state.fragment[from].erase(u);
+//                 state.fragment[from].erase(r);
+//                 state.fragment[to].erase(q);
+//                 state.fragment[to].erase(p);
+//             }
+//         }
+//         // }
+//         if (state.uf.size(from * n + r) > 1)
+//         {
+//             state.uf.unite(from * n + r, to * n + p);
+//             // used[from][r] = true;
+//             // used[to][p] = true;
+//             state.fragment[from].erase(r);
+//             state.fragment[from].erase(q);
+//         }
+//         cnt++;
+//     }
+//     debug("init end");
+// }
 
 void modify_sa(STATE &state)
 {
@@ -498,7 +631,29 @@ void modify_sa(STATE &state)
 // 状態のスコア計算
 int calc_score(STATE &state)
 {
-    return 0;
+    state.sync();
+    vector<int> used(state.anscnt, 0);
+    vector<int> size(state.anscnt, 0);
+    REP(i, 2)
+    {
+        for (int v : state.vertex[i])
+        {
+            auto [x, y, z] = state.ver2coord(v);
+            used[state.answer[i][x][y][z]] |= (1 << i);
+            size[state.answer[i][x][y][z]]++;
+        }
+    }
+    ll res = 0;
+    ll penal = 1000000000LL;
+    REP(i, state.anscnt)
+    {
+        if (used[i] != 3)
+        {
+            res += penal * size[i];
+        }
+        res += penal / size[i];
+    }
+    return res;
 }
 
 // 山登り法
