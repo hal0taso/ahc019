@@ -138,28 +138,6 @@ void debug()
 #endif
 }
 
-vi RandomPermutation(const vi &v)
-{
-    // int n = v.size();
-    // int part = 2;
-    // int rem = n % part;
-    // vector<int> w(v.size() / part);
-    // REP(i, w.size())
-    // {
-    //     w[i] = i;
-    // }
-    // shuffle(w.begin(), w.end(), engine);
-    // vi ans(n);
-    // REP(i, w)
-    // {
-    //     REP(j, part)
-    //     {
-    //         ans[i * part + j] = w[i] * part + j;
-    //     }
-    // }
-    return v;
-}
-
 tuple<int, int, int> rotate(int dx, int dy, int dz, int axis, int unit)
 {
     /* axis 0 (x) and rotate in y-z plane
@@ -959,12 +937,12 @@ void solve(const int d, const vvvi &face)
     //     beamwidth = 3;
     // }
     debug("start k_best");
-    k_best(state, beamwidth, samplesize, samplesize, TIME_LIMIT);
+    k_best(state, beamwidth, samplesize, samplesize, TIME_LIMIT_M);
     debug("end k_best");
     // debug("score: ", calc_score(state));
-    // debug("start sa");
-    // sa(state, beamwidth, samplesize, TIME_LIMIT_SA);
-    // debug("end sa");
+    debug("start sa");
+    sa(state, beamwidth, samplesize, TIME_LIMIT_SA);
+    debug("end sa");
     // debug("score: ", calc_score(state));
     state.sync();
     state.output();
