@@ -559,7 +559,7 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit)
 {
     // int from = 0, to = 1;
     int n = state.n;
-    debug("n=", n);
+    // debug("n=", n);
     // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
     // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
 
@@ -691,8 +691,8 @@ void mountain(STATE &state)
         // modify_mountain(STATE &state, int r, int p, int from, int to, int axis, int unit)
         modify_mountain(new_state);
         // debug("modify_end");
-        int new_score = calc_score(new_state);
-        int pre_score = calc_score(state);
+        ll new_score = calc_score(new_state);
+        ll pre_score = calc_score(state);
 
         if (new_score < pre_score)
         { // スコア最大化の場合
@@ -702,6 +702,85 @@ void mountain(STATE &state)
         // if (new_score == pre_score)
         // break;
     }
+}
+
+void k_best(STATE &state, int k)
+{
+    // STATE best;
+    // init(state);
+    auto compare = [](pair<ll, STATE> a, pair<ll, STATE> b)
+    {
+        return a.first > b.first;
+    };
+    ll start_time = getTime(); // 開始時刻
+    ll score = calc_score(state);
+    priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que(compare);
+    // priority_queue<pair<int, Struct>, vector<pair<ll, STATE>>, compare> que_next;
+    que.push({score, state});
+    int cnt = 0;
+    while (true)
+    {
+        debug("cnt: ", cnt);
+        ll now_time = getTime(); // 現在時刻
+        if (now_time - start_time > TIME_LIMIT_M)
+            break;
+        priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que_next(compare);
+        int que_size = que.size();
+        REP(i, min(k, que_size)) // 探索幅
+        {                        // 時間の許す限り回す
+            // ll now_time = getTime(); // 現在時刻
+            // if (now_time - start_time > TIME_LIMIT_M)
+            //     break;
+
+            auto [score, new_state] = que.top();
+            // STATE new_state = que.top().second;
+            que.pop();
+            // modify_mountain(STATE &state, int r, int p, int from, int to, int axis, int unit)
+            vector<vector<int>> sampled(2);
+            REP(i, 2)
+            {
+                sample(all(new_state.fragment[i]), back_inserter(sampled[i]), k, engine);
+                shuffle(all(sampled[i]), engine);
+            }
+
+            for (int r : sampled[0])
+            {
+                for (int p : sampled[1])
+                {
+                    for (int axis = 0; axis < 3; axis++)
+                    {
+                        for (int unit = 0; unit < 4; unit++)
+                        {
+                            STATE tmp_state = new_state;
+                            greedy(tmp_state, r, p, 0, 1, axis, unit);
+                            ll tmp_score = calc_score(tmp_state);
+                            que_next.push({tmp_score, tmp_state});
+                        }
+                    }
+                }
+            }
+        }
+        REP(i, min(k, que_size)) // 探索幅
+        {
+            auto [score, new_state] = que_next.top();
+            que.push({score, new_state});
+            que_next.pop();
+        }
+        cnt++;
+        // modify_mountain(new_state);
+        // debug("modify_end");
+        // int new_score = calc_score(new_state);
+        // int pre_score = calc_score(state);
+        // ll score = calc_score(new_state);
+        // if (new_score < pre_score)
+        // { // スコア最大化の場合
+        //     state = new_state;
+        //     // best = new_state;
+        // }
+        // if (new_score == pre_score)
+        // break;
+    }
+    state = que.top().second;
 }
 
 // 焼きなまし法
@@ -732,7 +811,7 @@ void sa(STATE &state)
         { // 確率probで遷移する
             state = new_state;
         }
-        if (new_score > pre_score)
+        if (new_score < pre_score)
         {
             best = new_state;
         }
@@ -743,7 +822,8 @@ void solve(const int d, const vvvi &face)
 {
     STATE state(d, face);
     // modify_mountain(state);
-    mountain(state);
+    // mountain(state);
+    k_best(state, 10);
     state.sync();
     state.output();
 }
