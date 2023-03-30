@@ -17,7 +17,7 @@ using vi = vector<int>;
 random_device seed_gen;
 mt19937 engine(seed_gen());
 // mt19937 engine(0);
-constexpr long long TIME_LIMIT = 5000;
+constexpr long long TIME_LIMIT = 5500;
 constexpr long long TIME_LIMIT_M = 3000;
 constexpr long long TIME_LIMIT_SA = 2000;
 constexpr long long INF = 1000000000LL;
@@ -632,14 +632,19 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
 
     auto [px, py, pz] = state.ver2coord(p);
     auto [rx, ry, rz] = state.ver2coord(r);
-    queue<int> que;
-    que.push(r);
+    queue<pair<int, int>> que;
+    que.push({r, 0});
     while (!que.empty())
     {
-        int u = que.front();
+        auto [u, depth] = que.front();
         que.pop();
+        if (depth > max_depth)
+        {
+            continue;
+        }
         // auto [ux, uy, uz] = state.ver2coord(u);
         // u から辿れる場所を調べる
+        depth++;
         for (int next_u : state.G[from][u])
         {
             auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
@@ -648,10 +653,6 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
                 continue;
             // rからのdiffをとる
             int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
-            if (abs(dx) + abs(dy) + abs(dz) > max_depth)
-            {
-                continue;
-            }
             // 回転させたdiffをとる
             auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
             // 回転させたdiffをpに作用させてqを得る
@@ -664,7 +665,7 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
                     continue;
                 state.uf.unite(from * n + next_u, from * n + r);
                 state.uf.unite(to * n + q, to * n + p);
-                que.push(next_u);
+                que.push({next_u, depth});
                 state.fragment[from].erase(next_u);
                 state.fragment[to].erase(q);
             }
@@ -748,21 +749,22 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
                 for (int p : sampled[1])
                 {
                     // priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que_tmp(compare);
-
-                    for (int axis = 0; axis < 3; axis++)
+                    int axis = engine() % 3;
+                    int unit = engine() % 4;
+                    // for (int axis = 0; axis < 3; axis++)
+                    // {
+                    //     for (int unit = 0; unit < 4; unit++)
+                    //     {
+                    STATE tmp_state = new_state;
+                    greedy(tmp_state, r, p, 0, 1, axis, unit, 10);
+                    ll tmp_score = calc_score(tmp_state);
+                    if (hash_set.find(tmp_state.zbhash) == hash_set.end())
                     {
-                        for (int unit = 0; unit < 4; unit++)
-                        {
-                            STATE tmp_state = new_state;
-                            greedy(tmp_state, r, p, 0, 1, axis, unit);
-                            ll tmp_score = calc_score(tmp_state);
-                            if (hash_set.find(tmp_state.zbhash) == hash_set.end())
-                            {
-                                que_next.push({tmp_score, tmp_state});
-                                hash_set.insert(tmp_state.zbhash);
-                            }
-                        }
+                        que_next.push({tmp_score, tmp_state});
+                        hash_set.insert(tmp_state.zbhash);
                     }
+                    //     }
+                    // }
                     // auto [tmp_score, tmp_state] = que_tmp.top();
                     // que_next.push({tmp_score, tmp_state});
                 }
@@ -974,9 +976,9 @@ void solve(const int d, const vvvi &face)
     // modify_mountain(state);
     // mountain(state);
     // int samplesize = 5;
-    int beamwidth = 1;
-    int samplesize = round((1. - ((double)d - 5.) / 9.) * 5. + ((double)d - 5.) / 9. * 2.);
-    // int beamwidth = round((1. - ((double)d - 5.) / 9.) * 15. + ((double)d - 5.) / 9. * 3.);
+    // int beamwidth = 5;
+    int samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 3.);
+    int beamwidth = round((1. - ((double)d - 5.) / 9.) * 5. + ((double)d - 5.) / 9. * 3.);
     debug("start k_best");
     k_best(state, beamwidth, samplesize, samplesize, TIME_LIMIT);
     debug("end k_best");
