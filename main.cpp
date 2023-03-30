@@ -458,7 +458,7 @@ ll calc_score(STATE &state)
     }
     ll res = 0;
     ll penal = 1000000LL;
-    REP(i, state.anscnt)
+    FOR(i, 1, state.anscnt + 1)
     {
         if (used[i] != 3)
         {
@@ -622,9 +622,69 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit)
     // debug("greedy end");
 }
 
+void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, int max_depth)
+{
+    // int from = 0, to = 1;
+    int n = state.n;
+    // debug("n=", n);
+    // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
+    // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
+
+    auto [px, py, pz] = state.ver2coord(p);
+    auto [rx, ry, rz] = state.ver2coord(r);
+    queue<int> que;
+    que.push(r);
+    while (!que.empty())
+    {
+        int u = que.front();
+        que.pop();
+        // auto [ux, uy, uz] = state.ver2coord(u);
+        // u から辿れる場所を調べる
+        for (int next_u : state.G[from][u])
+        {
+            auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
+            // 既に探索済ならスキップ
+            if (state.fragment[from].find(next_u) == state.fragment[from].end())
+                continue;
+            // rからのdiffをとる
+            int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
+            if (abs(dx) + abs(dy) + abs(dz) > max_depth)
+            {
+                continue;
+            }
+            // 回転させたdiffをとる
+            auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
+            // 回転させたdiffをpに作用させてqを得る
+            int qx = px + to_dx, qy = py + to_dy, qz = pz + to_dz;
+            // qがto側で使われるグラフなら...
+            if (state.is_need(qx, qy, qz, to))
+            {
+                int q = state.coord2ver(qx, qy, qz);
+                if (state.fragment[to].find(q) == state.fragment[to].end())
+                    continue;
+                state.uf.unite(from * n + next_u, from * n + r);
+                state.uf.unite(to * n + q, to * n + p);
+                que.push(next_u);
+                state.fragment[from].erase(next_u);
+                state.fragment[to].erase(q);
+            }
+        }
+        // }
+        if (state.uf.size(from * n + r) > 1)
+        {
+            state.uf.unite(from * n + r, to * n + p);
+            state.fragment[from].erase(r);
+            state.fragment[to].erase(p);
+        }
+    }
+    // ll score = calc_score(state);
+    // debug("score", score);
+    // debug("greedy end");
+}
+
 void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
 {
-    // STATE best;
+    // STATE best = state;
     // init(state);
     auto compare = [](pair<ll, STATE> a, pair<ll, STATE> b)
     {
@@ -643,10 +703,17 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
         ll now_time = getTime(); // 現在時刻
         if (now_time - start_time > timelimit)
             break;
-        int samplesize = start_size + (end_size - start_size) * (now_time - start_time) / TIME_LIMIT;
+        int samplesize = start_size + (end_size - start_size) * (now_time - start_time) / timelimit;
         priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que_next(compare);
+        // que_next.push(que.top());
         int que_size = que.size();
+        debug("que_size: ", que_size);
         set<unsigned long long> hash_set;
+        if (que_size == 0)
+        {
+            return;
+        }
+        // state = que.top().second;
         REP(i, min(k, que_size)) // 探索幅
         {                        // 時間の許す限り回す
             // ll now_time = getTime(); // 現在時刻
@@ -701,6 +768,7 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
                 }
             }
         }
+        que_size = que_next.size();
         REP(i, min(k, que_size)) // 探索幅
         {
             auto [score, new_state] = que_next.top();
@@ -722,6 +790,7 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
         // break;
     }
     state = que.top().second;
+    // state = best;
 }
 // 状態遷移
 void modify_mountain(STATE &state)
@@ -788,10 +857,9 @@ void modify_sa(STATE &state, int beamwidth, int samplesize)
     REP(i, state.anscnt) { ansvec[i] = i; }
     shuffle(all(ansvec), engine);
     set<int> breakid;
-    REP(i, breaksize)
+    REP(i, min(breaksize, state.anscnt))
     {
-        int b = ansvec[i];
-        b++;
+        int b = ansvec[i] + 1;
         breakid.insert(b);
     }
     // vvi sampled(2);
@@ -800,7 +868,7 @@ void modify_sa(STATE &state, int beamwidth, int samplesize)
         // pair<score, state>
         return a.first > b.first; // minimization
     };
-    priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que(compare);
+    // priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que(compare);
     REP(i, 2)
     {
         for (int b : breakid)
@@ -825,22 +893,6 @@ void modify_sa(STATE &state, int beamwidth, int samplesize)
         // sample(all(state.fragment[i]), back_inserter(sampled[i]), samplesize, engine);
         // shuffle(all(sampled[i]), engine);
     }
-    // for (int r : sampled[0])
-    // {
-    //     for (int p : sampled[1])
-    //     {
-    //         for (int axis = 0; axis < 3; axis++)
-    //         {
-    //             for (int unit = 0; unit < 4; unit++)
-    //             {
-    //                 STATE tmp_state = state;
-    //                 greedy(tmp_state, r, p, 0, 1, axis, unit);
-    //                 ll tmp_score = calc_score(tmp_state);
-    //                 que.push({tmp_score, tmp_state});
-    //             }
-    //         }
-    //     }
-    // }
     k_best(state, beamwidth, samplesize, samplesize, 100);
 }
 
@@ -921,28 +973,17 @@ void solve(const int d, const vvvi &face)
     STATE state(d, face);
     // modify_mountain(state);
     // mountain(state);
-    int samplesize;
-    int beamwidth;
-    // FOR(e, 5, 15)
-    // {
-    samplesize = round((1. - ((double)d - 5.) / 9.) * 5. + ((double)d - 5.) / 9. * 2.);
-    beamwidth = round((1. - ((double)d - 5.) / 9.) * 15. + ((double)d - 5.) / 9. * 3.);
-    //     debug("sample: ", samplesize);
-    //     debug("beam: ", beamwidth);
-    // }
-    // return;
-    // if (d >= 5)
-    // {
-    //     samplesize = 2;
-    //     beamwidth = 3;
-    // }
+    // int samplesize = 5;
+    int beamwidth = 1;
+    int samplesize = round((1. - ((double)d - 5.) / 9.) * 5. + ((double)d - 5.) / 9. * 2.);
+    // int beamwidth = round((1. - ((double)d - 5.) / 9.) * 15. + ((double)d - 5.) / 9. * 3.);
     debug("start k_best");
-    k_best(state, beamwidth, samplesize, samplesize, TIME_LIMIT_M);
+    k_best(state, beamwidth, samplesize, samplesize, TIME_LIMIT);
     debug("end k_best");
     // debug("score: ", calc_score(state));
-    debug("start sa");
-    sa(state, beamwidth, samplesize, TIME_LIMIT_SA);
-    debug("end sa");
+    // debug("start sa");
+    // sa(state, beamwidth, samplesize, TIME_LIMIT_SA);
+    // debug("end sa");
     // debug("score: ", calc_score(state));
     state.sync();
     state.output();
