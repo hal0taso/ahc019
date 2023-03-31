@@ -21,8 +21,13 @@ constexpr long long TIME_LIMIT = 5500;
 constexpr long long TIME_LIMIT_M = 3000;
 constexpr long long TIME_LIMIT_SA = 2000;
 constexpr long long INF = 1000000000LL;
+ll penal = 1000000LL;
 
-map<pair<int, int>, unsigned long long> hashtable;
+// global
+map<pair<int, int>, unsigned long long> hashtable; // (v, rv, size(v));
+vvvi face;                                         // maintain silhouette of the each graph
+vvvi G;
+vvi vertex; // vector of vertex of G1
 
 struct UnionFind
 {
@@ -49,6 +54,8 @@ struct UnionFind
     {                     // xとyの木を併合
         int rx = root(x); // xの根をrx
         int ry = root(y); // yの根をry
+        if (ry > rx)
+            swap(rx, ry);
         if (rx == ry)
             return;   // xとyの根が同じ(=同じ木にある)時はそのまま
         par[rx] = ry; // xとyの根が同じでない(=同じ木にない)時：xの根rxをyの根ryにつける
@@ -175,54 +182,37 @@ tuple<int, int, int> rotate(int dx, int dy, int dz, int axis, int unit)
 // 状態
 struct STATE
 {
-    vvi vertex; // vector of vertex of G1
     vector<set<int>> fragment;
-    vvvi G;
+    // vvvi G;
     int n; // num of V(G_i)
     // vi perm;     // map from V(G_1) to V(G_2)
-    vvvi face;   // maintain silhouette of the each graph
-    vvvvi count; // store the target silhouette.
+    vvvvi count;     // store the target silhouette. count[i][j][z][x or y]
+    vvvvi count_flg; // store the target silhouette. count[i][j][z][x or y]
     int d;
     vvvvi answer; // maintain the component idx of the graph
     int anscnt;
+    ll merged_score;
+    ll flagment_score;
     UnionFind uf; // first half: vertices of G[0]. second half: vertices of G[1]
     unsigned long long zbhash;
+    ll score;
     // map<pair<int, int>, unsigned long long> hashtable;
-    STATE(const int _d, const vvvi &vec) : d(_d)
+    STATE(const int _d) : d(_d)
     {
         n = d * d * d;
-        face = vec;
+        // face = vec;
         zbhash = 0ULL;
         // initialize array
         count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
+        count_flg.assign(2, vvvi(2, vvi(d, vi(d, 0))));
         answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
         vertex.resize(2);
         fragment.resize(2);
-        // perm = RandomPermutation(vertex);
-        //         debug("----------------");
-        // #ifdef DONLINE_JUDGE
-        // #else
-        //         REP(i, 2)
-        //         {
-        //             REP(j, 2)
-        //             {
-        //                 REP(x, d)
-        //                 {
-        //                     REP(y, d)
-        //                     {
-        //                         if ((face[i][j][x] >> y) & 1 == 1)
-        //                             cout << '1';
-        //                         else
-        //                             cout << '0';
-        //                     }
-        //                     cout << '\n';
-        //                 }
-        //                 debug("----------------");
-        //             }
-        //         }
-        // #endif
-        // create two graphs
-
+        merged_score = 0LL;
+        flagment_score = 0LL;
+        // score = n * 1000000LL;
+        score = 0LL;
+        // n * 1000000LL;
         REP(gidx, 2)
         {
             debug("Create Vertex");
@@ -232,8 +222,8 @@ struct STATE
                 auto [x, y, z] = ver2coord(v);
                 vertex[gidx].push_back(v);
                 answer[gidx][x][y][z] = v;
-                count[gidx][0][z][x]++;
-                count[gidx][1][z][y]++;
+                // count[gidx][0][z][x]++;
+                // count[gidx][1][z][y]++;
                 fragment[gidx].insert(v);
             }
             debug(vertex[gidx]);
@@ -305,6 +295,38 @@ struct STATE
         return x * d * d + y * d + z;
     }
 
+    void unite(int u, int v, int ui, int vi)
+    {
+        auto [ux, uy, uz] = ver2coord(u);
+        auto [vx, vy, vz] = ver2coord(v);
+        // int usize = uf.size(ui * n + u);
+        // int vsize = uf.size(vi * n + v);
+        uf.unite(ui * n + u, vi * n + v);
+        if (uf.size(vi * n + v) > 1)
+        {
+            merged_score += penal / (uf.size(vi * n + v) / 2);
+        }
+        count[ui][0][uz][ux]++;
+        count[ui][1][uz][uy]++;
+        count[vi][0][vz][vx]++;
+        count[vi][1][vz][vy]++;
+    }
+    void unite(int u, int v, int i)
+    {
+        auto [ux, uy, uz] = ver2coord(u);
+        auto [vx, vy, vz] = ver2coord(v);
+        int usize = uf.size(i * n + u);
+        int vsize = uf.size(i * n + v);
+        uf.unite(i * n + u, i * n + v);
+        // if (uf.size(i * n + v) > 1)
+        // {
+        //     merged_score -= 1000000LL / uf.size(i * n + v);
+        // }
+        count[i][0][uz][ux]++;
+        count[i][1][uz][uy]++;
+        // count[i][0][vz][vx]++;
+        // count[i][1][vz][vy]++;
+    }
     tuple<int, int, int> ver2coord(int u)
     {
         int x, y, z;
@@ -348,72 +370,28 @@ struct STATE
         return cond;
     }
 
-    void sync()
+    void sync_light()
     {
-        map<int, int> m;
-        count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
-        answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
-        zbhash = 0ULL;
-        // int cnt = 0;
-        anscnt = 0;
+        ll flg = 0;
+        count_flg.assign(2, vvvi(2, vvi(d, vi(d, 0))));
         REP(i, 2)
         {
-            for (int v : vertex[i])
-            {
-                int rx = uf.root(n * i + v);
-                int size = uf.size(n * i + v);
-                auto [x, y, z] = ver2coord(v);
-                bool cond = (size > 1);
-                if (m.count(rx) == 0 && cond)
-                {
-                    anscnt++;
-                    m[rx] = anscnt;
-                }
-                if (cond)
-                {
-                    answer[i][x][y][z] = m[rx];
-                    pair<int, int> key = {i * n + v, m[rx]};
-                    if (hashtable.count(key) == 0)
-                    {
-                        hashtable[key] = engine() % (1ULL << 60);
-                    }
-                    zbhash ^= hashtable[key];
-                    // debug("answer", m[rx]);
-                    count[i][0][z][x]++;
-                    count[i][1][z][y]++;
-                }
-            }
-        }
-        int flagment = 0;
-        REP(i, 2)
-        {
-            int tmp = 0;
-            for (int v : vertex[i])
+            ll tmp = 0;
+            for (int v : fragment[i])
             {
                 auto [x, y, z] = ver2coord(v);
-                int size = uf.size(n * i + v);
-                // reduce
-                if (size > 1)
-                    continue;
-                if (count[i][0][z][x] < 1 || count[i][1][z][y] < 1)
+                if (count_flg[i][0][z][x] + count[i][0][z][x] < 1 || count_flg[i][1][z][y] + count[i][1][z][y] < 1)
                 {
-                    // debug("adjust");
-                    count[i][0][z][x]++;
-                    count[i][1][z][y]++;
+                    count_flg[i][0][z][x]++;
+                    count_flg[i][1][z][y]++;
                     tmp++;
-                    answer[i][x][y][z] = anscnt + tmp;
-                    pair<int, int> key = {i * n + v, anscnt + tmp};
-                    if (hashtable.count(key) == 0)
-                    {
-                        hashtable[key] = engine() % (1ULL << 60);
-                    }
-                    zbhash ^= hashtable[key];
                 }
             }
-            if (tmp > flagment)
-                flagment = tmp;
+            if (flg < tmp)
+                flg = tmp;
         }
-        anscnt += flagment;
+        flagment_score = penal * flg;
+        score = merged_score + flagment_score;
     }
 
     void output()
@@ -437,38 +415,92 @@ struct STATE
             }
         }
     }
+
+    void calc_score()
+    {
+        sync_light();
+    }
 };
+
+void sync(STATE &state)
+{
+    map<int, int> m;
+    int d = state.d;
+    int n = state.n;
+    vvvvi count;
+    count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
+    state.answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
+    unsigned long long zbhash = 0ULL;
+    // int cnt = 0;
+    int anscnt = 0;
+    REP(i, 2)
+    {
+        for (int v : vertex[i])
+        {
+            int rx = state.uf.root(n * i + v);
+            int size = state.uf.size(n * i + v);
+            auto [x, y, z] = state.ver2coord(v);
+            bool cond = (size > 1);
+            if (m.count(rx) == 0 && cond)
+            {
+                anscnt++;
+                m[rx] = anscnt;
+            }
+            if (cond)
+            {
+                state.answer[i][x][y][z] = m[rx];
+                pair<int, int> key = {i * n + v, m[rx]};
+                if (hashtable.count(key) == 0)
+                {
+                    hashtable[key] = engine() % (1ULL << 60);
+                }
+                zbhash ^= hashtable[key];
+                // debug("answer", m[rx]);
+                count[i][0][z][x]++;
+                count[i][1][z][y]++;
+            }
+        }
+    }
+    int flg = 0;
+    REP(i, 2)
+    {
+        int tmp = 0;
+        for (int v : vertex[i])
+        {
+            auto [x, y, z] = state.ver2coord(v);
+            int size = state.uf.size(n * i + v);
+            // reduce
+            if (size > 1)
+                continue;
+            if (count[i][0][z][x] < 1 || count[i][1][z][y] < 1)
+            {
+                // debug("adjust");
+                count[i][0][z][x]++;
+                count[i][1][z][y]++;
+                tmp++;
+                state.answer[i][x][y][z] = anscnt + tmp;
+                pair<int, int> key = {i * state.n + v, anscnt + tmp};
+                if (hashtable.count(key) == 0)
+                {
+                    hashtable[key] = engine() % (1ULL << 60);
+                }
+                zbhash ^= hashtable[key];
+            }
+        }
+        if (tmp > flg)
+            flg = tmp;
+    }
+    anscnt += flg;
+    state.anscnt = anscnt;
+    state.zbhash = zbhash;
+}
 
 // 状態のスコア計算
 ll calc_score(STATE &state)
 {
-    // return 0;
-    state.sync();
-    // state.output();
-    vector<int> used(state.anscnt + 1, 0);
-    vector<int> size(state.anscnt + 1, 0);
-    REP(i, 2)
-    {
-        for (int v : state.vertex[i])
-        {
-            auto [x, y, z] = state.ver2coord(v);
-            used[state.answer[i][x][y][z]] |= (1 << i);
-            size[state.answer[i][x][y][z]]++;
-        }
-    }
-    ll res = 0;
-    ll penal = 1000000LL;
-    FOR(i, 1, state.anscnt + 1)
-    {
-        if (used[i] != 3)
-        {
-            res += penal * size[i];
-        }
-        res += penal / size[i];
-    }
-    // debug("score: ", res);
-    // debug("hash:", state.zbhash);
-    return res;
+    state.calc_score();
+    // debug("score: ", state.score);
+    return state.score;
 }
 
 // 状態の初期化
@@ -525,7 +557,7 @@ void init(STATE &state)
             que.pop();
             // auto [ux, uy, uz] = state.ver2coord(u);
             // u から辿れる場所を調べる
-            for (int next_u : state.G[from][u])
+            for (int next_u : G[from][u])
             {
                 auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
                 // 既に探索済ならスキップ
@@ -543,8 +575,8 @@ void init(STATE &state)
                     int q = state.coord2ver(qx, qy, qz);
                     if (used[to][q])
                         continue;
-                    state.uf.unite(from * n + next_u, from * n + u);
-                    state.uf.unite(to * n + q, to * n + p);
+                    state.unite(next_u, u, from);
+                    state.unite(q, p, to);
                     que.push(next_u);
                     used[from][u] = true;
                     used[from][next_u] = true;
@@ -554,7 +586,8 @@ void init(STATE &state)
         }
         if (state.uf.size(from * n + r) > 1)
         {
-            state.uf.unite(from * n + r, to * n + p);
+            // state.uf.unite(from * n + r, to * n + p);
+            state.unite(r, p, from, to);
             used[from][r] = true;
             used[to][p] = true;
         }
@@ -563,63 +596,6 @@ void init(STATE &state)
     // ll score = calc_score(state);
     // debug("score", score);
     // debug("init end");
-}
-
-// 状態遷移
-void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit)
-{
-    // int from = 0, to = 1;
-    int n = state.n;
-    // debug("n=", n);
-    // 1. 片方の始点と対応するもう一方の始点をランダムに選択する
-    // 2. 回転方向と始点をランダムに選択しBFSして伸ばせるものから伸ばしていく
-
-    auto [px, py, pz] = state.ver2coord(p);
-    auto [rx, ry, rz] = state.ver2coord(r);
-    queue<int> que;
-    que.push(r);
-    while (!que.empty())
-    {
-        int u = que.front();
-        que.pop();
-        // auto [ux, uy, uz] = state.ver2coord(u);
-        // u から辿れる場所を調べる
-        for (int next_u : state.G[from][u])
-        {
-            auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
-            // 既に探索済ならスキップ
-            if (state.fragment[from].find(next_u) == state.fragment[from].end())
-                continue;
-            // rからのdiffをとる
-            int dx = next_ux - rx, dy = next_uy - ry, dz = next_uz - rz;
-            // 回転させたdiffをとる
-            auto [to_dx, to_dy, to_dz] = rotate(dx, dy, dz, axis, unit);
-            // 回転させたdiffをpに作用させてqを得る
-            int qx = px + to_dx, qy = py + to_dy, qz = pz + to_dz;
-            // qがto側で使われるグラフなら...
-            if (state.is_need(qx, qy, qz, to))
-            {
-                int q = state.coord2ver(qx, qy, qz);
-                if (state.fragment[to].find(q) == state.fragment[to].end())
-                    continue;
-                state.uf.unite(from * n + next_u, from * n + r);
-                state.uf.unite(to * n + q, to * n + p);
-                que.push(next_u);
-                state.fragment[from].erase(next_u);
-                state.fragment[to].erase(q);
-            }
-        }
-        // }
-        if (state.uf.size(from * n + r) > 1)
-        {
-            state.uf.unite(from * n + r, to * n + p);
-            state.fragment[from].erase(r);
-            state.fragment[to].erase(p);
-        }
-    }
-    // ll score = calc_score(state);
-    // debug("score", score);
-    // debug("greedy end");
 }
 
 void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, int max_depth)
@@ -645,7 +621,7 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
         // auto [ux, uy, uz] = state.ver2coord(u);
         // u から辿れる場所を調べる
         depth++;
-        for (int next_u : state.G[from][u])
+        for (int next_u : G[from][u])
         {
             auto [next_ux, next_uy, next_uz] = state.ver2coord(next_u);
             // 既に探索済ならスキップ
@@ -663,27 +639,30 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
                 int q = state.coord2ver(qx, qy, qz);
                 if (state.fragment[to].find(q) == state.fragment[to].end())
                     continue;
-                state.uf.unite(from * n + next_u, from * n + r);
-                state.uf.unite(to * n + q, to * n + p);
+                state.unite(next_u, r, from);
+                state.unite(q, p, to);
                 que.push({next_u, depth});
                 state.fragment[from].erase(next_u);
                 state.fragment[to].erase(q);
             }
         }
-        // }
-        if (state.uf.size(from * n + r) > 1)
-        {
-            state.uf.unite(from * n + r, to * n + p);
-            state.fragment[from].erase(r);
-            state.fragment[to].erase(p);
-        }
     }
-    // ll score = calc_score(state);
-    // debug("score", score);
-    // debug("greedy end");
+    if (state.uf.size(from * n + r) > 1)
+    {
+        // state.uf.unite(from * n + r, to * n + p);
+        state.unite(r, p, from, to);
+        state.fragment[from].erase(r);
+        state.fragment[to].erase(p);
+    }
 }
 
-void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
+// 状態遷移
+void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit)
+{
+    greedy(state, r, p, from, to, axis, unit, 10);
+}
+
+void k_best(STATE &state, int k, int start_size, int end_size, int maxdepth, ll timelimit)
 {
     // STATE best = state;
     // init(state);
@@ -728,18 +707,6 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
             vector<vector<int>> sampled(2);
             REP(i, 2)
             {
-                // priority_queue<pair<int, int>> deg_que;
-                // for (int v : new_state.fragment[i])
-                // {
-                //     int deg = state.G[i][v].size();
-                //     deg_que.push({deg, v});
-                // }
-                // REP(j, min(k, (int)deg_que.size()))
-                // {
-                //     int v = deg_que.top().second;
-                //     sampled[i].push_back(v);
-                //     deg_que.pop();
-                // }
                 sample(all(new_state.fragment[i]), back_inserter(sampled[i]), samplesize, engine);
                 shuffle(all(sampled[i]), engine);
             }
@@ -748,7 +715,8 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
             {
                 for (int p : sampled[1])
                 {
-                    // priority_queue<pair<ll, STATE>, vector<pair<ll, STATE>>, decltype(compare)> que_tmp(compare);
+                    // REP(_, 2)
+                    // {
                     int axis = engine() % 3;
                     int unit = engine() % 4;
                     // for (int axis = 0; axis < 3; axis++)
@@ -756,13 +724,14 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
                     //     for (int unit = 0; unit < 4; unit++)
                     //     {
                     STATE tmp_state = new_state;
-                    greedy(tmp_state, r, p, 0, 1, axis, unit, 10);
+                    greedy(tmp_state, r, p, 0, 1, axis, unit, maxdepth);
                     ll tmp_score = calc_score(tmp_state);
-                    if (hash_set.find(tmp_state.zbhash) == hash_set.end())
-                    {
-                        que_next.push({tmp_score, tmp_state});
-                        hash_set.insert(tmp_state.zbhash);
-                    }
+                    // if (hash_set.find(tmp_state.zbhash) == hash_set.end())
+                    // {
+                    que_next.push({tmp_score, tmp_state});
+                    // hash_set.insert(tmp_state.zbhash);
+                    // }
+                    // }
                     //     }
                     // }
                     // auto [tmp_score, tmp_state] = que_tmp.top();
@@ -778,18 +747,6 @@ void k_best(STATE &state, int k, int start_size, int end_size, ll timelimit)
             que_next.pop();
         }
         cnt++;
-        // modify_mountain(new_state);
-        // debug("modify_end");
-        // int new_score = calc_score(new_state);
-        // int pre_score = calc_score(state);
-        // ll score = calc_score(new_state);
-        // if (new_score < pre_score)
-        // { // スコア最大化の場合
-        //     state = new_state;
-        //     // best = new_state;
-        // }
-        // if (new_score == pre_score)
-        // break;
     }
     state = que.top().second;
     // state = best;
@@ -838,10 +795,7 @@ void modify_mountain(STATE &state)
         {
             REP(unit, 4)
             {
-                // debug("copy state");
                 STATE new_state = state;
-                // debug("axis ", axis);
-                // debug("unit ", unit);
                 greedy(new_state, r, p, from, to, axis, unit);
                 ll new_score = calc_score(new_state);
                 if (new_score < pre_score)
@@ -895,7 +849,7 @@ void modify_sa(STATE &state, int beamwidth, int samplesize)
         // sample(all(state.fragment[i]), back_inserter(sampled[i]), samplesize, engine);
         // shuffle(all(sampled[i]), engine);
     }
-    k_best(state, beamwidth, samplesize, samplesize, 100);
+    k_best(state, beamwidth, samplesize, samplesize, 100, 100);
 }
 
 // 山登り法
@@ -972,22 +926,22 @@ void sa(STATE &state, int beamwidth, int samplesize, ll time_limit)
 
 void solve(const int d, const vvvi &face)
 {
-    STATE state(d, face);
+    STATE state(d);
     // modify_mountain(state);
     // mountain(state);
-    // int samplesize = 5;
-    // int beamwidth = 5;
-    int samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 3.);
-    int beamwidth = round((1. - ((double)d - 5.) / 9.) * 5. + ((double)d - 5.) / 9. * 3.);
+    int s_samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.);
+    int e_samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 2.);
+    int beamwidth = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.);
+    int maxdepth = round((1. - ((double)d - 5.) / 9.) * 7. + ((double)d - 5.) / 9. * 5.);
     debug("start k_best");
-    k_best(state, beamwidth, samplesize, samplesize, TIME_LIMIT);
+    k_best(state, beamwidth, s_samplesize, e_samplesize, maxdepth, TIME_LIMIT);
     debug("end k_best");
-    // debug("score: ", calc_score(state));
+    debug("score: ", state.score);
     // debug("start sa");
     // sa(state, beamwidth, samplesize, TIME_LIMIT_SA);
     // debug("end sa");
     // debug("score: ", calc_score(state));
-    state.sync();
+    sync(state);
     state.output();
 }
 
@@ -995,12 +949,13 @@ int main()
 {
     // face[i][j]: f_i (if j = 0) or r_i (if j = 1)
     // f_i = [l1, l2, l3...] l = 01110001
-    vvvi face;
+    // vvvi face;
     int d;
 
     cin >> d;
     string s;
     face.assign(2, vvi(2, vi(d, 0)));
+
     // cout << d << endl;
     REP(i, 2)
     {
