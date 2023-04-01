@@ -24,7 +24,7 @@ constexpr long long INF = 1000000000LL;
 ll penal = 1000000LL;
 
 // global
-map<pair<int, int>, unsigned long long> hashtable; // (v, rv, size(v));
+map<pair<int, int>, unsigned long long> hashtable; // (v, rv) -> hash;
 vvvi face;                                         // maintain silhouette of the each graph
 vvvi G;
 vvi vertex; // vector of vertex of G1
@@ -186,10 +186,10 @@ struct STATE
     // vvvi G;
     int n; // num of V(G_i)
     // vi perm;     // map from V(G_1) to V(G_2)
-    vvvvi count;     // store the target silhouette. count[i][j][z][x or y]
-    vvvvi count_flg; // store the target silhouette. count[i][j][z][x or y]
+    vvvvi count; // store the target silhouette. count[i][j][z][x or y]
+    // vvvvi count_flg; // store the target silhouette. count[i][j][z][x or y]
     int d;
-    vvvvi answer; // maintain the component idx of the graph
+    // vvvvi answer; // maintain the component idx of the graph
     int anscnt;
     ll merged_score;
     ll flagment_score;
@@ -204,8 +204,8 @@ struct STATE
         zbhash = 0ULL;
         // initialize array
         count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
-        count_flg.assign(2, vvvi(2, vvi(d, vi(d, 0))));
-        answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
+        // count_flg.assign(2, vvvi(2, vvi(d, vi(d, 0))));
+        // answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
         vertex.resize(2);
         fragment.resize(2);
         merged_score = 0LL;
@@ -221,7 +221,7 @@ struct STATE
             {
                 auto [x, y, z] = ver2coord(v);
                 vertex[gidx].push_back(v);
-                answer[gidx][x][y][z] = v;
+                // answer[gidx][x][y][z] = v;
                 // count[gidx][0][z][x]++;
                 // count[gidx][1][z][y]++;
                 fragment[gidx].insert(v);
@@ -373,6 +373,7 @@ struct STATE
     void sync_light()
     {
         ll flg = 0;
+        vvvvi count_flg; // store the target silhouette. count[i][j][z][x or y]
         count_flg.assign(2, vvvi(2, vvi(d, vi(d, 0))));
         REP(i, 2)
         {
@@ -394,43 +395,110 @@ struct STATE
         score = merged_score + flagment_score;
     }
 
-    void output()
-    {
-        cout << anscnt << '\n';
-        REP(i, 2)
-        {
-            REP(x, d)
-            {
-                REP(y, d)
-                {
-                    REP(z, d)
-                    {
-                        cout << answer[i][x][y][z];
-                        if (x == d - 1 && y == d - 1 && z == d - 1)
-                            cout << '\n';
-                        else
-                            cout << ' ';
-                    }
-                }
-            }
-        }
-    }
-
     void calc_score()
     {
         sync_light();
     }
+
+    void update_hash(vector<vector<int>> &dirty_vertex)
+    {
+        REP(i, 2)
+        {
+            for (int v : dirty_vertex[i])
+            {
+                int rx = uf.root(n * i + v);
+                pair<int, int> key = {i * n + v, rx};
+                if (hashtable.count(key) == 0)
+                {
+                    hashtable[key] = engine() % (1ULL << 60);
+                }
+                zbhash ^= hashtable[key];
+            }
+        }
+    }
 };
 
-void sync(STATE &state)
+// void sync(STATE &state)
+// {
+//     map<int, int> m;
+//     int d = state.d;
+//     int n = state.n;
+//     vvvvi count;
+//     count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
+//     state.answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
+//     unsigned long long zbhash = 0ULL;
+//     // int cnt = 0;
+//     int anscnt = 0;
+//     REP(i, 2)
+//     {
+//         for (int v : vertex[i])
+//         {
+//             int rx = state.uf.root(n * i + v);
+//             int size = state.uf.size(n * i + v);
+//             auto [x, y, z] = state.ver2coord(v);
+//             bool cond = (size > 1);
+//             if (m.count(rx) == 0 && cond)
+//             {
+//                 anscnt++;
+//                 m[rx] = anscnt;
+//             }
+//             if (cond)
+//             {
+//                 state.answer[i][x][y][z] = m[rx];
+//                 pair<int, int> key = {i * n + v, m[rx]};
+//                 if (hashtable.count(key) == 0)
+//                 {
+//                     hashtable[key] = engine() % (1ULL << 60);
+//                 }
+//                 zbhash ^= hashtable[key];
+//                 // debug("answer", m[rx]);
+//                 count[i][0][z][x]++;
+//                 count[i][1][z][y]++;
+//             }
+//         }
+//     }
+//     int flg = 0;
+//     REP(i, 2)
+//     {
+//         int tmp = 0;
+//         for (int v : vertex[i])
+//         {
+//             auto [x, y, z] = state.ver2coord(v);
+//             int size = state.uf.size(n * i + v);
+//             // reduce
+//             if (size > 1)
+//                 continue;
+//             if (count[i][0][z][x] < 1 || count[i][1][z][y] < 1)
+//             {
+//                 // debug("adjust");
+//                 count[i][0][z][x]++;
+//                 count[i][1][z][y]++;
+//                 tmp++;
+//                 state.answer[i][x][y][z] = anscnt + tmp;
+//                 pair<int, int> key = {i * state.n + v, anscnt + tmp};
+//                 if (hashtable.count(key) == 0)
+//                 {
+//                     hashtable[key] = engine() % (1ULL << 60);
+//                 }
+//                 zbhash ^= hashtable[key];
+//             }
+//         }
+//         if (tmp > flg)
+//             flg = tmp;
+//     }
+//     anscnt += flg;
+//     state.anscnt = anscnt;
+//     state.zbhash = zbhash;
+// }
+void output(STATE &state)
 {
     map<int, int> m;
     int d = state.d;
     int n = state.n;
     vvvvi count;
+    vvvvi answer;
     count.assign(2, vvvi(2, vvi(d, vi(d, 0))));
-    state.answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
-    unsigned long long zbhash = 0ULL;
+    answer.assign(2, vvvi(d, vvi(d, vi(d, 0))));
     // int cnt = 0;
     int anscnt = 0;
     REP(i, 2)
@@ -448,13 +516,7 @@ void sync(STATE &state)
             }
             if (cond)
             {
-                state.answer[i][x][y][z] = m[rx];
-                pair<int, int> key = {i * n + v, m[rx]};
-                if (hashtable.count(key) == 0)
-                {
-                    hashtable[key] = engine() % (1ULL << 60);
-                }
-                zbhash ^= hashtable[key];
+                answer[i][x][y][z] = m[rx];
                 // debug("answer", m[rx]);
                 count[i][0][z][x]++;
                 count[i][1][z][y]++;
@@ -478,21 +540,32 @@ void sync(STATE &state)
                 count[i][0][z][x]++;
                 count[i][1][z][y]++;
                 tmp++;
-                state.answer[i][x][y][z] = anscnt + tmp;
-                pair<int, int> key = {i * state.n + v, anscnt + tmp};
-                if (hashtable.count(key) == 0)
-                {
-                    hashtable[key] = engine() % (1ULL << 60);
-                }
-                zbhash ^= hashtable[key];
+                answer[i][x][y][z] = anscnt + tmp;
             }
         }
         if (tmp > flg)
             flg = tmp;
     }
     anscnt += flg;
-    state.anscnt = anscnt;
-    state.zbhash = zbhash;
+
+    cout << anscnt << '\n';
+    REP(i, 2)
+    {
+        REP(x, d)
+        {
+            REP(y, d)
+            {
+                REP(z, d)
+                {
+                    cout << answer[i][x][y][z];
+                    if (x == d - 1 && y == d - 1 && z == d - 1)
+                        cout << '\n';
+                    else
+                        cout << ' ';
+                }
+            }
+        }
+    }
 }
 
 // 状態のスコア計算
@@ -610,6 +683,7 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
     auto [rx, ry, rz] = state.ver2coord(r);
     queue<pair<int, int>> que;
     que.push({r, 0});
+    vvi dirty_vertex(2); // hash計算する対象
     while (!que.empty())
     {
         auto [u, depth] = que.front();
@@ -642,6 +716,8 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
                 state.unite(next_u, r, from);
                 state.unite(q, p, to);
                 que.push({next_u, depth});
+                dirty_vertex[from].push_back(next_u);
+                dirty_vertex[to].push_back(q);
                 state.fragment[from].erase(next_u);
                 state.fragment[to].erase(q);
             }
@@ -653,6 +729,9 @@ void greedy(STATE &state, int r, int p, int from, int to, int axis, int unit, in
         state.unite(r, p, from, to);
         state.fragment[from].erase(r);
         state.fragment[to].erase(p);
+        dirty_vertex[from].push_back(r);
+        dirty_vertex[to].push_back(p);
+        state.update_hash(dirty_vertex);
     }
 }
 
@@ -689,6 +768,7 @@ void k_best(STATE &state, int k, int start_size, int end_size, int maxdepth, ll 
         int que_size = que.size();
         debug("que_size: ", que_size);
         set<unsigned long long> hash_set;
+        set<ll> score_set;
         if (que_size == 0)
         {
             return;
@@ -717,22 +797,39 @@ void k_best(STATE &state, int k, int start_size, int end_size, int maxdepth, ll 
                 {
                     // REP(_, 2)
                     // {
-                    int axis = engine() % 3;
-                    int unit = engine() % 4;
-                    // for (int axis = 0; axis < 3; axis++)
-                    // {
-                    //     for (int unit = 0; unit < 4; unit++)
-                    //     {
-                    STATE tmp_state = new_state;
-                    greedy(tmp_state, r, p, 0, 1, axis, unit, maxdepth);
-                    ll tmp_score = calc_score(tmp_state);
-                    // if (hash_set.find(tmp_state.zbhash) == hash_set.end())
-                    // {
-                    que_next.push({tmp_score, tmp_state});
-                    // hash_set.insert(tmp_state.zbhash);
-                    // }
-                    // }
-                    //     }
+                    if (((double)state.d - 5.) / 9. > 0.5)
+                    {
+                        int axis = engine() % 3;
+                        int unit = engine() % 4;
+                        STATE tmp_state = new_state;
+                        greedy(tmp_state, r, p, 0, 1, axis, unit, maxdepth);
+                        ll tmp_score = calc_score(tmp_state);
+                        if (hash_set.find(tmp_state.zbhash) == hash_set.end())
+                        {
+                            que_next.push({tmp_score, tmp_state});
+                            hash_set.insert(tmp_state.zbhash);
+                            debug("score: ", tmp_score);
+                        }
+                    }
+                    else
+                    {
+
+                        for (int axis = 0; axis < 3; axis++)
+                        {
+                            for (int unit = 0; unit < 4; unit++)
+                            {
+                                STATE tmp_state = new_state;
+                                greedy(tmp_state, r, p, 0, 1, axis, unit, maxdepth);
+                                ll tmp_score = calc_score(tmp_state);
+                                if (hash_set.find(tmp_state.zbhash) == hash_set.end())
+                                {
+                                    que_next.push({tmp_score, tmp_state});
+                                    hash_set.insert(tmp_state.zbhash);
+                                    debug("score: ", tmp_score);
+                                }
+                            }
+                        }
+                    }
                     // }
                     // auto [tmp_score, tmp_state] = que_tmp.top();
                     // que_next.push({tmp_score, tmp_state});
@@ -835,7 +932,8 @@ void modify_sa(STATE &state, int beamwidth, int samplesize)
                 {
                     for (int z = 0; z < state.d; z++)
                     {
-                        if (state.answer[i][x][y][z] == b)
+                        // break answer
+                        // if (state.answer[i][x][y][z] == b)
                         {
                             int v = state.coord2ver(x, y, z);
                             state.uf.par[state.n * i + v] = state.n * i + v;
@@ -929,10 +1027,10 @@ void solve(const int d, const vvvi &face)
     STATE state(d);
     // modify_mountain(state);
     // mountain(state);
-    int s_samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.);
-    int e_samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 2.);
-    int beamwidth = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.);
-    int maxdepth = round((1. - ((double)d - 5.) / 9.) * 7. + ((double)d - 5.) / 9. * 5.);
+    int s_samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.); // 5
+    int e_samplesize = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.); // 5
+    int beamwidth = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 5.);    // 5
+    int maxdepth = round((1. - ((double)d - 5.) / 9.) * 10. + ((double)d - 5.) / 9. * 7.);     // 7
     debug("start k_best");
     k_best(state, beamwidth, s_samplesize, e_samplesize, maxdepth, TIME_LIMIT);
     debug("end k_best");
@@ -941,8 +1039,8 @@ void solve(const int d, const vvvi &face)
     // sa(state, beamwidth, samplesize, TIME_LIMIT_SA);
     // debug("end sa");
     // debug("score: ", calc_score(state));
-    sync(state);
-    state.output();
+    // sync(state);
+    output(state);
 }
 
 int main()
