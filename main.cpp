@@ -685,6 +685,13 @@ void solve(const int d, const vvvi &face,
     int e_samplesize = round((1. - ((double)d - 5.) / 9.) * r_e_samplesize.first + ((double)d - 5.) / 9. * r_e_samplesize.second); // 10 - 5
     int beamwidth = round((1. - ((double)d - 5.) / 9.) * r_beamwidth.first + ((double)d - 5.) / 9. * r_beamwidth.second);          // 10 - 5
     int maxdepth = round((1. - ((double)d - 5.) / 9.) * r_maxdepth.first + ((double)d - 5.) / 9. * r_maxdepth.second);             // 10 - 7
+    if (d <= 6)
+    {
+        s_samplesize = 10;
+        e_samplesize = 10;
+        beamwidth = 10;
+        maxdepth = 10;
+    }
     debug("start k_best");
     k_best(state, beamwidth, s_samplesize, e_samplesize, maxdepth, threshold, TIME_LIMIT);
     ll score = state.score;
