@@ -4,10 +4,10 @@ AtCoder Heuristic Contest 019
 ## Problem
 ### Input
 * D: integer
-* $f_1$ : $D \times D$ array representing the silhouette of $G_1$ in the $z$-$x$ plane 
-* $r_1$ : $D \times D$ array representing the silhouette of $G_1$ in the  $z$-$y$ plane
-* $f_2$ : $D \times D$ array representing the silhouette of $G_2$ in the $z$-$x$ plane
-* $r_2$ : $D \times D$ array representing the silhouette of $G_2$ in the $z$-$y$ plane
+* $f_1$ : $D \times D$ array representing the silhouette of $G_1$ in the $z$- $x$ plane 
+* $r_1$ : $D \times D$ array representing the silhouette of $G_1$ in the  $z$- $y$ plane
+* $f_2$ : $D \times D$ array representing the silhouette of $G_2$ in the $z$- $x$ plane
+* $r_2$ : $D \times D$ array representing the silhouette of $G_2$ in the $z$- $y$ plane
 
 ### Formulation
 * Let $G_1$, $G_2$ be two (undirected) graph whose vertex is $v$;
