@@ -22,7 +22,7 @@ https://atcoder.jp/contests/ahc019/tasks/ahc019_a
 * I considered that each connected components of $G_1$ and $G_2$ as a piece of puzzle.
 
 * To maintain common components, I considered $G = G_1 \cup G_2$ as a union of two graph.
-  * If two connected components $c_1 \subseteq G_1$ and $c_2 \subseteq G_2$ are common piece of the puzzle, then I defined $c = c_1 \cup c_2 \cup {r, p} \subseteq G$, where $r \in V(G_1)$ and $p \in V(G_2)$, as a connected components which represents the common piece.
+  * If two connected components $c_1 \subseteq G_1$ and $c_2 \subseteq G_2$ are common piece of the puzzle, then I defined $c = c_1 \cup c_2 \cup \{\{r, p\}\} \subseteq G$, where $r \in V(G_1)$ and $p \in V(G_2)$, as a connected components which represents the common piece.
   * Use an Union-Find to maintain connected components of $G$.
 
 ## Approach
