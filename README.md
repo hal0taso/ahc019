@@ -2,6 +2,8 @@
 AtCoder Heuristic Contest 019
 
 ## Problem
+https://atcoder.jp/contests/ahc019/tasks/ahc019_a
+
 ### Input
 * D: integer
 * $f_1$ : $D \times D$ array representing the silhouette of $G_1$ in the $z$- $x$ plane 
