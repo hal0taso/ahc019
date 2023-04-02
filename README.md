@@ -76,4 +76,4 @@ I changed following parameters depends on an input size $D$.
   * I tried all possible `axis` and `unit` for small $D$.
   * For large $D$, I choose `axis` and `unit` randomly.
 
-I tried parameter tuning by optuna, but I couldn't any good insight from the result.
+I tried parameter tuning by optuna, but I couldn't get any good insight from the result.
