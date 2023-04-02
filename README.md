@@ -28,7 +28,7 @@ https://atcoder.jp/contests/ahc019/tasks/ahc019_a
 ### Basic Idea: a greedy approach
 1. Starts from a state with all vertices are isolated.
 2. Chose candidates of vertices $S_1 \in V(G_1)$, $S_2 \in V(G_2)$, axis of rotation (defined as `axis`), and degree (defined as `unit`) randomly.
-3. For all possible pair $(r, p) \in S_1 \tims S_2$, 
+3. For all possible pair $(r, p) \in S_1 \times S_2$, 
   *. run BFS starts from $(r, p)$. In the BFS step, I defined following rules:
     * In $G$, two pair of vertices $(r, p)$ and $(u, q)$ can be united if they hold following all conditions 
       * $\{r, u\} \in E(G_1)$
