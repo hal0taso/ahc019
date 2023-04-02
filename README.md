@@ -25,6 +25,7 @@ https://atcoder.jp/contests/ahc019/tasks/ahc019_a
   * If two connected components $c_1 \subseteq G_1$ and $c_2 \subseteq G_2$ are common piece of the puzzle, then I defined $c = c_1 \cup c_2 \cup {r, p} \subseteq G$, where $r \in V(G_1)$ and $p \in V(G_2)$, as a connected components which represents the common piece.
   * Use an Union-Find to maintain connected components of $G$.
 
+## Approach
 ### Basic Idea: a greedy approach
 1. Starts from a state with all vertices are isolated.
 2. Chose candidates of vertices $S_1 \in V(G_1)$, $S_2 \in V(G_2)$, axis of rotation (defined as `axis`), and degree (defined as `unit`) randomly.
@@ -48,7 +49,7 @@ https://atcoder.jp/contests/ahc019/tasks/ahc019_a
     * When I computes a Zobrist hash of each states, I assigned a random number for each tuple of $(v, root(v))$, where $v$ is a vertex of $G$ and $root(v)$ is a root of $v$ in the Union-Find tree.
       * In order to keep reproducibility of the hash value, I modified my Union-Find implementation so that it always stores the smallest value of the set.
 
-## Third Improvement: performance improvement of computing score/hash
+### Third Improvement: performance improvement of computing score/hash
 Since it was expensive to recalculate scores and hash values for every states in each iteration, I improved performaces for score&hash calculation as follows:
 
 * Basic idea (of score evaluation): compute for merged components and isolated vertices separatelly.
@@ -64,7 +65,7 @@ Since it was expensive to recalculate scores and hash values for every states in
   2. For each iteration, prepare a set of vertex `dirty_vertex` which maintains merged vertices.
   3. When bfs was stopped (i.e., one search procedure for specific $r \in V(G_1)$ and $p \in V(G_2)$ has completed), I update the hash value by using each $v$ in `dirty_vertex`,
 
-## Other features (but I'm not sure each of them has any effect..)
+### Other features (but I'm not sure each of them has any effect..)
 I changed following parameters depends on an input size $D$.
 
 1. Change the number of samples to be searched by bfs between early stage of search and later stage.
@@ -75,4 +76,4 @@ I changed following parameters depends on an input size $D$.
   * I tried all possible `axis` and `unit` for small $D$.
   * For large $D$, I choose `axis` and `unit` randomly.
 
-
+I tried parameter tuning by optuna, but I couldn't any good insight from the result.
