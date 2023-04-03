@@ -12,7 +12,7 @@ https://atcoder.jp/contests/ahc019/tasks/ahc019_a
 * $r_2$ : $D \times D$ array representing the silhouette of $G_2$ in the $z$- $y$ plane
 
 ### Formulation
-* Let $G_1$, $G_2$ be two (undirected) graph whose vertex is $v$;
+* Let $G_1$, $G_2$ be two (undirected) graph;
   * Each $G_i$ represents an assembling pattern whose silhouette matches $f_i$ and $r_i$.
 
 * $G_i$ is defined as 
